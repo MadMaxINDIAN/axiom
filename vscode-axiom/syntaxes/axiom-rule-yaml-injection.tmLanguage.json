@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Axiom Rule YAML Injection",
+  "scopeName": "source.axiom-rule.yaml-injection",
+  "injectionSelector": "L:source.yaml",
+  "patterns": [
+    { "include": "#ars-operators" },
+    { "include": "#ars-condition-groups" },
+    { "include": "#ars-action-types" },
+    { "include": "#ars-top-level-keys" },
+    { "include": "#ars-template-expressions" }
+  ],
+  "repository": {
+    "ars-top-level-keys": {
+      "patterns": [
+        {
+          "name": "keyword.control.ars-version.axiom",
+          "match": "(?<=^|\\n)(ars_version)(?=\\s*:)"
+        },
+        {
+          "name": "keyword.other.top-level.axiom",
+          "match": "(?<=^|\\n)(conditions|actions|rulesets|bundle)(?=\\s*:)"
+        }
+      ]
+    },
+    "ars-condition-groups": {
+      "patterns": [
+        {
+          "name": "keyword.control.condition.all.axiom",
+          "match": "(?<=\\s|^)(all)(?=\\s*:)"
+        },
+        {
+          "name": "keyword.control.condition.any.axiom",
+          "match": "(?<=\\s|^)(any)(?=\\s*:)"
+        },
+        {
+          "name": "keyword.control.condition.none.axiom",
+          "match": "(?<=\\s|^)(none)(?=\\s*:)"
+        },
+        {
+          "name": "keyword.control.condition.not.axiom",
+          "match": "(?<=\\s|^)(not)(?=\\s*:)"
+        }
+      ]
+    },
+    "ars-operators": {
+      "name": "keyword.operator.comparison.axiom",
+      "match": "(?<=(op|operator)\\s*:\\s*)(eq|ne|gt|gte|lt|lte|in|not_in|contains|not_contains|starts_with|ends_with|matches|exists|not_exists|between|not_between|is_null|is_not_null)(?=\\s*$|\\s*#)"
+    },
+    "ars-action-types": {
+      "name": "support.function.action-type.axiom",
+      "match": "(?<=type\\s*:\\s*)(approve|decline|flag|tag|set_value|call_rule|trigger|log|notify|set_score|block|allow|redirect|require|noop)(?=\\s*$|\\s*#)"
+    },
+    "ars-template-expressions": {
+      "name": "meta.template.axiom",
+      "begin": "\\{\\{",
+      "end": "\\}\\}",
+      "beginCaptures": { "0": { "name": "punctuation.definition.template.begin.axiom" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.template.end.axiom" } },
+      "patterns": [
+        {
+          "name": "variable.other.template.axiom",
+          "match": "[a-zA-Z_][a-zA-Z0-9_\\.\\[\\]]*"
+        },
+        {
+          "name": "support.function.template.axiom",
+          "match": "\\b(now|today|days_since|days_until|len|sum|min|max|avg|round|floor|ceil|abs|lower|upper|trim)\\s*(?=\\()"
+        },
+        {
+          "name": "constant.numeric.template.axiom",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}

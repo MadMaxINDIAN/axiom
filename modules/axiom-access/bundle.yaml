@@ -1,0 +1,462 @@
+ars_version: "1.0"
+bundle:
+  name: axiom-access
+  version: "1.0.0"
+  description: |
+    Feature flags, entitlements, plan-based access control, and trial expiry
+    rules for multi-tenant SaaS products.
+
+# ---------------------------------------------------------------------------
+# Rules
+# ---------------------------------------------------------------------------
+rules:
+
+  # ── Feature flags ──────────────────────────────────────────────────────────
+
+  - id: ff.advanced_analytics
+    name: Feature Flag — Advanced Analytics
+    description: Grant access to advanced analytics when flag is explicitly enabled.
+    tags: [feature-flag, analytics]
+    conditions:
+      all:
+        - field: flags.advanced_analytics
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: feature.advanced_analytics
+        value: true
+      - type: tag
+        tag: feature:advanced_analytics
+
+  - id: ff.ai_copilot
+    name: Feature Flag — AI Copilot
+    description: Grant AI copilot access; requires flag AND model_access entitlement.
+    tags: [feature-flag, ai]
+    conditions:
+      all:
+        - field: flags.ai_copilot
+          op: eq
+          value: true
+        - field: entitlements
+          op: contains
+          value: model_access
+    actions:
+      - type: set_value
+        key: feature.ai_copilot
+        value: true
+      - type: tag
+        tag: feature:ai_copilot
+
+  - id: ff.bulk_export
+    name: Feature Flag — Bulk Export
+    description: Allow bulk data export when feature flag is active.
+    tags: [feature-flag, export]
+    conditions:
+      all:
+        - field: flags.bulk_export
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: feature.bulk_export
+        value: true
+      - type: tag
+        tag: feature:bulk_export
+
+  - id: ff.custom_domain
+    name: Feature Flag — Custom Domain
+    description: Allow custom domain configuration when flag is enabled.
+    tags: [feature-flag, domain]
+    conditions:
+      all:
+        - field: flags.custom_domain
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: feature.custom_domain
+        value: true
+      - type: tag
+        tag: feature:custom_domain
+
+  # ── Plan-based access ──────────────────────────────────────────────────────
+
+  - id: plan.free
+    name: Plan — Free Tier
+    description: Identify free-tier accounts and enforce feature limits.
+    tags: [plan, free]
+    conditions:
+      all:
+        - field: account.plan
+          op: eq
+          value: free
+    actions:
+      - type: set_value
+        key: plan.tier
+        value: free
+      - type: set_value
+        key: limits.seats
+        value: 3
+      - type: set_value
+        key: limits.api_calls_per_day
+        value: 1000
+      - type: set_value
+        key: limits.storage_gb
+        value: 1
+      - type: tag
+        tag: plan:free
+
+  - id: plan.starter
+    name: Plan — Starter
+    description: Starter plan entitlements and limits.
+    tags: [plan, starter]
+    conditions:
+      all:
+        - field: account.plan
+          op: eq
+          value: starter
+    actions:
+      - type: set_value
+        key: plan.tier
+        value: starter
+      - type: set_value
+        key: limits.seats
+        value: 10
+      - type: set_value
+        key: limits.api_calls_per_day
+        value: 10000
+      - type: set_value
+        key: limits.storage_gb
+        value: 20
+      - type: set_value
+        key: feature.advanced_analytics
+        value: true
+      - type: tag
+        tag: plan:starter
+
+  - id: plan.growth
+    name: Plan — Growth
+    description: Growth plan entitlements including bulk export and AI copilot access.
+    tags: [plan, growth]
+    conditions:
+      all:
+        - field: account.plan
+          op: eq
+          value: growth
+    actions:
+      - type: set_value
+        key: plan.tier
+        value: growth
+      - type: set_value
+        key: limits.seats
+        value: 50
+      - type: set_value
+        key: limits.api_calls_per_day
+        value: 100000
+      - type: set_value
+        key: limits.storage_gb
+        value: 100
+      - type: set_value
+        key: feature.advanced_analytics
+        value: true
+      - type: set_value
+        key: feature.bulk_export
+        value: true
+      - type: tag
+        tag: plan:growth
+
+  - id: plan.enterprise
+    name: Plan — Enterprise
+    description: Enterprise plan — all features, unlimited seats, custom limits.
+    tags: [plan, enterprise]
+    conditions:
+      all:
+        - field: account.plan
+          op: eq
+          value: enterprise
+    actions:
+      - type: set_value
+        key: plan.tier
+        value: enterprise
+      - type: set_value
+        key: limits.seats
+        value: 99999
+      - type: set_value
+        key: limits.api_calls_per_day
+        value: 99999999
+      - type: set_value
+        key: limits.storage_gb
+        value: 1000
+      - type: set_value
+        key: feature.advanced_analytics
+        value: true
+      - type: set_value
+        key: feature.bulk_export
+        value: true
+      - type: set_value
+        key: feature.ai_copilot
+        value: true
+      - type: set_value
+        key: feature.custom_domain
+        value: true
+      - type: set_value
+        key: feature.sso
+        value: true
+      - type: set_value
+        key: feature.audit_log
+        value: true
+      - type: tag
+        tag: plan:enterprise
+
+  # ── Entitlement checks ─────────────────────────────────────────────────────
+
+  - id: entitlement.sso
+    name: Entitlement — SSO
+    description: Grant SSO access when entitlement is present in account entitlements list.
+    tags: [entitlement, sso]
+    conditions:
+      all:
+        - field: entitlements
+          op: contains
+          value: sso
+    actions:
+      - type: set_value
+        key: feature.sso
+        value: true
+      - type: tag
+        tag: entitlement:sso
+
+  - id: entitlement.audit_log
+    name: Entitlement — Audit Log
+    description: Grant audit log access via explicit entitlement.
+    tags: [entitlement, audit]
+    conditions:
+      all:
+        - field: entitlements
+          op: contains
+          value: audit_log
+    actions:
+      - type: set_value
+        key: feature.audit_log
+        value: true
+      - type: tag
+        tag: entitlement:audit_log
+
+  - id: entitlement.priority_support
+    name: Entitlement — Priority Support
+    description: Route to priority support queue when entitlement is present.
+    tags: [entitlement, support]
+    conditions:
+      all:
+        - field: entitlements
+          op: contains
+          value: priority_support
+    actions:
+      - type: set_value
+        key: support.queue
+        value: priority
+      - type: tag
+        tag: entitlement:priority_support
+
+  # ── Trial management ───────────────────────────────────────────────────────
+
+  - id: trial.active
+    name: Trial — Active
+    description: Account is in an active trial period.
+    tags: [trial, active]
+    conditions:
+      all:
+        - field: account.is_trial
+          op: eq
+          value: true
+        - field: account.trial_expires_at
+          op: gt
+          value: "{{ now() }}"
+    actions:
+      - type: set_value
+        key: trial.active
+        value: true
+      - type: set_value
+        key: trial.expired
+        value: false
+      - type: tag
+        tag: trial:active
+
+  - id: trial.expiring_soon
+    name: Trial — Expiring Soon (≤7 days)
+    description: Trial expires within 7 days — flag for conversion nudge.
+    tags: [trial, expiring-soon]
+    conditions:
+      all:
+        - field: account.is_trial
+          op: eq
+          value: true
+        - field: account.trial_expires_at
+          op: gt
+          value: "{{ now() }}"
+        - field: account.trial_days_remaining
+          op: lte
+          value: 7
+    actions:
+      - type: set_value
+        key: trial.expiring_soon
+        value: true
+      - type: tag
+        tag: trial:expiring_soon
+
+  - id: trial.expired
+    name: Trial — Expired
+    description: Trial period has elapsed; downgrade to free or block access.
+    tags: [trial, expired]
+    conditions:
+      all:
+        - field: account.is_trial
+          op: eq
+          value: true
+        - field: account.trial_expires_at
+          op: lte
+          value: "{{ now() }}"
+    actions:
+      - type: set_value
+        key: trial.active
+        value: false
+      - type: set_value
+        key: trial.expired
+        value: true
+      - type: set_value
+        key: account.plan
+        value: free
+      - type: tag
+        tag: trial:expired
+
+  # ── Seat limits ────────────────────────────────────────────────────────────
+
+  - id: seats.limit_exceeded
+    name: Seat Limit Exceeded
+    description: Block new user invite when seat count is at or above the plan limit.
+    tags: [seats, limit]
+    conditions:
+      all:
+        - field: account.current_seats
+          op: gte
+          value: "{{ limits.seats }}"
+    actions:
+      - type: set_value
+        key: access.invite_allowed
+        value: false
+      - type: set_value
+        key: access.block_reason
+        value: seat_limit_exceeded
+      - type: tag
+        tag: access:blocked
+      - type: tag
+        tag: reason:seat_limit
+
+  - id: seats.within_limit
+    name: Seat Limit OK
+    description: Seat count is within plan limit — allow invites.
+    tags: [seats]
+    conditions:
+      all:
+        - field: account.current_seats
+          op: lt
+          value: "{{ limits.seats }}"
+    actions:
+      - type: set_value
+        key: access.invite_allowed
+        value: true
+
+  # ── API rate limiting decisions ────────────────────────────────────────────
+
+  - id: api.rate_limit_exceeded
+    name: API Rate Limit Exceeded
+    description: Block API call when daily call count exceeds plan limit.
+    tags: [api, rate-limit]
+    conditions:
+      all:
+        - field: api.calls_today
+          op: gte
+          value: "{{ limits.api_calls_per_day }}"
+    actions:
+      - type: set_value
+        key: api.allowed
+        value: false
+      - type: set_value
+        key: api.block_reason
+        value: rate_limit_exceeded
+      - type: tag
+        tag: api:blocked
+
+  - id: api.within_rate_limit
+    name: API Within Rate Limit
+    description: Allow API call when daily count is within plan limit.
+    tags: [api]
+    conditions:
+      all:
+        - field: api.calls_today
+          op: lt
+          value: "{{ limits.api_calls_per_day }}"
+    actions:
+      - type: set_value
+        key: api.allowed
+        value: true
+
+# ---------------------------------------------------------------------------
+# Rulesets
+# ---------------------------------------------------------------------------
+rulesets:
+
+  - id: access.feature_flags
+    name: Feature Flag Evaluation
+    description: Evaluate all feature flags for a session.
+    strategy: all_match
+    rules:
+      - ff.advanced_analytics
+      - ff.ai_copilot
+      - ff.bulk_export
+      - ff.custom_domain
+
+  - id: access.plan_entitlements
+    name: Plan-Based Access Control
+    description: Determine entitlements based on subscription plan.
+    strategy: first_match
+    rules:
+      - plan.enterprise
+      - plan.growth
+      - plan.starter
+      - plan.free
+
+  - id: access.explicit_entitlements
+    name: Explicit Entitlement Grants
+    description: Grant features via individual entitlements (add-ons).
+    strategy: all_match
+    rules:
+      - entitlement.sso
+      - entitlement.audit_log
+      - entitlement.priority_support
+
+  - id: access.trial_lifecycle
+    name: Trial Lifecycle
+    description: Manage trial state and expiry.
+    strategy: first_match
+    rules:
+      - trial.expired
+      - trial.expiring_soon
+      - trial.active
+
+  - id: access.seat_enforcement
+    name: Seat Limit Enforcement
+    description: Check whether new seat invites are permitted.
+    strategy: first_match
+    rules:
+      - seats.limit_exceeded
+      - seats.within_limit
+
+  - id: access.api_throttle
+    name: API Throttle Decision
+    description: Decide whether an API call should be allowed or rate-limited.
+    strategy: first_match
+    rules:
+      - api.rate_limit_exceeded
+      - api.within_rate_limit

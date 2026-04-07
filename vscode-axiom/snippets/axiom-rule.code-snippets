@@ -1,0 +1,201 @@
+{
+  "ARS Rule (minimal)": {
+    "prefix": ["ars-rule", "axiom-rule"],
+    "description": "Minimal ARS rule scaffold",
+    "body": [
+      "ars_version: \"1.0\"",
+      "id: ${1:rule_id}",
+      "name: ${2:Rule Name}",
+      "description: ${3:What this rule does.}",
+      "tags: [${4:tag1, tag2}]",
+      "conditions:",
+      "  all:",
+      "    - field: ${5:field.path}",
+      "      op: ${6|eq,ne,gt,gte,lt,lte,in,not_in,contains,starts_with,ends_with,matches,exists|}",
+      "      value: ${7:value}",
+      "actions:",
+      "  - type: ${8|approve,decline,tag,set_value,flag,log,notify|}",
+      "    $0"
+    ]
+  },
+
+  "ARS Bundle": {
+    "prefix": ["ars-bundle", "axiom-bundle"],
+    "description": "ARS bundle file with rules and rulesets",
+    "body": [
+      "ars_version: \"1.0\"",
+      "bundle:",
+      "  name: ${1:bundle-name}",
+      "  version: \"1.0.0\"",
+      "  description: |",
+      "    ${2:Bundle description.}",
+      "",
+      "rules:",
+      "  - id: ${3:rule_id}",
+      "    name: ${4:Rule Name}",
+      "    conditions:",
+      "      all:",
+      "        - field: ${5:field.path}",
+      "          op: ${6|eq,ne,gt,gte,lt,lte,in,contains|}",
+      "          value: ${7:value}",
+      "    actions:",
+      "      - type: ${8|approve,decline,tag,set_value|}",
+      "        $0",
+      "",
+      "rulesets:",
+      "  - id: ${9:ruleset.id}",
+      "    name: ${10:Ruleset Name}",
+      "    strategy: ${11|first_match,all_match,scored|}",
+      "    rules:",
+      "      - ${3}"
+    ]
+  },
+
+  "ARS Condition — all": {
+    "prefix": ["cond-all", "all-condition"],
+    "description": "ARS 'all' condition group",
+    "body": [
+      "all:",
+      "  - field: ${1:field.path}",
+      "    op: ${2|eq,ne,gt,gte,lt,lte,in,not_in,contains,starts_with,ends_with,matches,exists|}",
+      "    value: ${3:value}$0"
+    ]
+  },
+
+  "ARS Condition — any": {
+    "prefix": ["cond-any", "any-condition"],
+    "description": "ARS 'any' condition group",
+    "body": [
+      "any:",
+      "  - field: ${1:field.path}",
+      "    op: ${2|eq,ne,gt,gte,lt,lte,in,not_in,contains,starts_with,ends_with,matches,exists|}",
+      "    value: ${3:value}$0"
+    ]
+  },
+
+  "ARS Condition — not": {
+    "prefix": ["cond-not", "not-condition"],
+    "description": "ARS 'not' condition group (single child)",
+    "body": [
+      "not:",
+      "  field: ${1:field.path}",
+      "  op: ${2|eq,ne,gt,gte,lt,lte,in,not_in,contains,starts_with,ends_with,matches,exists|}",
+      "  value: ${3:value}$0"
+    ]
+  },
+
+  "ARS Condition leaf": {
+    "prefix": ["cond-leaf", "leaf"],
+    "description": "Single ARS leaf condition",
+    "body": [
+      "- field: ${1:field.path}",
+      "  op: ${2|eq,ne,gt,gte,lt,lte,in,not_in,contains,starts_with,ends_with,matches,exists,between|}",
+      "  value: ${3:value}$0"
+    ]
+  },
+
+  "ARS Action — approve": {
+    "prefix": "action-approve",
+    "description": "ARS approve action",
+    "body": ["- type: approve"]
+  },
+
+  "ARS Action — decline": {
+    "prefix": "action-decline",
+    "description": "ARS decline action with reason",
+    "body": [
+      "- type: decline",
+      "  reason: ${1:reason_code}$0"
+    ]
+  },
+
+  "ARS Action — set_value": {
+    "prefix": ["action-set", "set-value"],
+    "description": "ARS set_value action",
+    "body": [
+      "- type: set_value",
+      "  key: ${1:output.key}",
+      "  value: ${2:value}$0"
+    ]
+  },
+
+  "ARS Action — tag": {
+    "prefix": "action-tag",
+    "description": "ARS tag action",
+    "body": [
+      "- type: tag",
+      "  tag: ${1:tag-name}$0"
+    ]
+  },
+
+  "ARS Action — call_rule": {
+    "prefix": "action-call-rule",
+    "description": "ARS call_rule action",
+    "body": [
+      "- type: call_rule",
+      "  rule_id: ${1:target_rule_id}$0"
+    ]
+  },
+
+  "ARS Action — trigger": {
+    "prefix": "action-trigger",
+    "description": "ARS trigger action (emit event)",
+    "body": [
+      "- type: trigger",
+      "  event: ${1:event.name}$0"
+    ]
+  },
+
+  "ARS Action — log": {
+    "prefix": "action-log",
+    "description": "ARS log action",
+    "body": [
+      "- type: log",
+      "  message: ${1:Log message here.}$0"
+    ]
+  },
+
+  "ARS Action — notify": {
+    "prefix": "action-notify",
+    "description": "ARS notify action",
+    "body": [
+      "- type: notify",
+      "  channel: ${1:slack}",
+      "  message: ${2:Notification message.}$0"
+    ]
+  },
+
+  "ARS Action — set_score": {
+    "prefix": "action-score",
+    "description": "ARS set_score action",
+    "body": [
+      "- type: set_score",
+      "  score: ${1:10}$0"
+    ]
+  },
+
+  "ARS Ruleset": {
+    "prefix": ["ars-ruleset", "ruleset"],
+    "description": "ARS ruleset definition",
+    "body": [
+      "- id: ${1:ruleset.id}",
+      "  name: ${2:Ruleset Name}",
+      "  description: ${3:Ruleset description.}",
+      "  strategy: ${4|first_match,all_match,scored|}",
+      "  rules:",
+      "    - ${5:rule_id}$0"
+    ]
+  },
+
+  "ARS Template expression": {
+    "prefix": ["tpl", "template"],
+    "description": "ARS template expression {{ ... }}",
+    "body": ["\"{{ ${1:expression} }}\"$0"]
+  },
+
+  "ARS in-list value": {
+    "prefix": "in-list",
+    "description": "ARS value as inline YAML list",
+    "body": ["[${1:val1}, ${2:val2}]$0"]
+  }
+}

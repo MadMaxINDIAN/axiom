@@ -1,0 +1,660 @@
+ars_version: "1.0"
+bundle:
+  name: axiom-ops
+  version: "1.0.0"
+  description: |
+    Alerting thresholds, incident routing, on-call escalation, SLA breach
+    detection, and operational runbook selection for SRE/DevOps teams.
+
+# ---------------------------------------------------------------------------
+# Rules
+# ---------------------------------------------------------------------------
+rules:
+
+  # ── Alerting — Severity Classification ────────────────────────────────────
+
+  - id: alert.critical
+    name: Alert — Critical Severity
+    description: >
+      Classify alert as P1/Critical when error rate or latency breach
+      critical thresholds, or when a health check is completely down.
+    tags: [alert, severity, critical]
+    conditions:
+      any:
+        - field: metric.error_rate_pct
+          op: gte
+          value: 10
+        - field: metric.p99_latency_ms
+          op: gte
+          value: 5000
+        - field: service.health_check_passing
+          op: eq
+          value: false
+        - field: metric.availability_pct
+          op: lt
+          value: 99.0
+    actions:
+      - type: set_value
+        key: alert.severity
+        value: critical
+      - type: set_value
+        key: alert.priority
+        value: P1
+      - type: set_value
+        key: alert.page_on_call
+        value: true
+      - type: tag
+        tag: severity:critical
+      - type: tag
+        tag: priority:P1
+
+  - id: alert.high
+    name: Alert — High Severity
+    description: >
+      Classify alert as P2/High for elevated error rates or latency
+      degradation that do not yet breach critical thresholds.
+    tags: [alert, severity, high]
+    conditions:
+      any:
+        - all:
+          - field: metric.error_rate_pct
+            op: gte
+            value: 5
+          - field: metric.error_rate_pct
+            op: lt
+            value: 10
+        - all:
+          - field: metric.p99_latency_ms
+            op: gte
+            value: 2000
+          - field: metric.p99_latency_ms
+            op: lt
+            value: 5000
+        - all:
+          - field: metric.availability_pct
+            op: gte
+            value: 99.0
+          - field: metric.availability_pct
+            op: lt
+            value: 99.9
+    actions:
+      - type: set_value
+        key: alert.severity
+        value: high
+      - type: set_value
+        key: alert.priority
+        value: P2
+      - type: set_value
+        key: alert.page_on_call
+        value: true
+      - type: tag
+        tag: severity:high
+      - type: tag
+        tag: priority:P2
+
+  - id: alert.medium
+    name: Alert — Medium Severity
+    description: Elevated metrics within warning bands — notify but do not page.
+    tags: [alert, severity, medium]
+    conditions:
+      any:
+        - all:
+          - field: metric.error_rate_pct
+            op: gte
+            value: 1
+          - field: metric.error_rate_pct
+            op: lt
+            value: 5
+        - all:
+          - field: metric.p99_latency_ms
+            op: gte
+            value: 1000
+          - field: metric.p99_latency_ms
+            op: lt
+            value: 2000
+        - field: metric.cpu_pct
+          op: gte
+          value: 85
+        - field: metric.memory_pct
+          op: gte
+          value: 85
+    actions:
+      - type: set_value
+        key: alert.severity
+        value: medium
+      - type: set_value
+        key: alert.priority
+        value: P3
+      - type: set_value
+        key: alert.page_on_call
+        value: false
+      - type: tag
+        tag: severity:medium
+      - type: tag
+        tag: priority:P3
+
+  - id: alert.low
+    name: Alert — Low Severity
+    description: Informational alert — log and notify channel, no paging.
+    tags: [alert, severity, low]
+    conditions:
+      all:
+        - field: metric.error_rate_pct
+          op: lt
+          value: 1
+        - field: metric.p99_latency_ms
+          op: lt
+          value: 1000
+        - field: metric.cpu_pct
+          op: lt
+          value: 85
+        - field: metric.memory_pct
+          op: lt
+          value: 85
+        - field: service.health_check_passing
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: alert.severity
+        value: low
+      - type: set_value
+        key: alert.priority
+        value: P4
+      - type: set_value
+        key: alert.page_on_call
+        value: false
+      - type: tag
+        tag: severity:low
+
+  # ── Incident Routing ───────────────────────────────────────────────────────
+
+  - id: routing.database_team
+    name: Route — Database Team
+    description: Route incident to the database on-call team.
+    tags: [routing, database]
+    conditions:
+      any:
+        - field: service.layer
+          op: eq
+          value: database
+        - field: alert.labels.service
+          op: in
+          value: [postgres, mysql, redis, cassandra, mongo, elasticsearch]
+        - field: metric.db_connection_pool_exhausted
+          op: eq
+          value: true
+        - field: metric.replication_lag_seconds
+          op: gte
+          value: 30
+    actions:
+      - type: set_value
+        key: incident.team
+        value: database
+      - type: set_value
+        key: incident.channel
+        value: "#oncall-database"
+      - type: tag
+        tag: routed:database
+
+  - id: routing.platform_team
+    name: Route — Platform / Infra Team
+    description: Route to platform team for infrastructure and Kubernetes incidents.
+    tags: [routing, platform]
+    conditions:
+      any:
+        - field: service.layer
+          op: eq
+          value: infrastructure
+        - field: alert.labels.service
+          op: in
+          value: [kubernetes, etcd, istio, nginx, haproxy, vault, consul]
+        - field: alert.labels.alertname
+          op: starts_with
+          value: "Kube"
+        - field: metric.node_ready
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: incident.team
+        value: platform
+      - type: set_value
+        key: incident.channel
+        value: "#oncall-platform"
+      - type: tag
+        tag: routed:platform
+
+  - id: routing.app_team
+    name: Route — Application Team
+    description: Route to the owning application team based on service label.
+    tags: [routing, app]
+    conditions:
+      all:
+        - field: service.layer
+          op: eq
+          value: application
+        - field: alert.labels.team
+          op: exists
+          value: true
+    actions:
+      - type: set_value
+        key: incident.team
+        value: "{{ alert.labels.team }}"
+      - type: set_value
+        key: incident.channel
+        value: "#oncall-{{ alert.labels.team }}"
+      - type: tag
+        tag: routed:app_team
+
+  - id: routing.security_team
+    name: Route — Security Team
+    description: Route security-relevant alerts to the security on-call.
+    tags: [routing, security]
+    conditions:
+      any:
+        - field: alert.labels.alertname
+          op: contains
+          value: "Security"
+        - field: alert.labels.alertname
+          op: contains
+          value: "Intrusion"
+        - field: alert.labels.alertname
+          op: contains
+          value: "Auth"
+        - field: metric.failed_auth_rate_per_minute
+          op: gte
+          value: 100
+    actions:
+      - type: set_value
+        key: incident.team
+        value: security
+      - type: set_value
+        key: incident.channel
+        value: "#oncall-security"
+      - type: tag
+        tag: routed:security
+
+  # ── On-Call Escalation ─────────────────────────────────────────────────────
+
+  - id: escalation.l1_page
+    name: Escalation — L1 Page
+    description: >
+      Page L1 on-call engineer immediately for P1 or P2 incidents.
+    tags: [escalation, l1]
+    conditions:
+      all:
+        - field: alert.priority
+          op: in
+          value: [P1, P2]
+        - field: incident.acknowledged
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: escalation.level
+        value: L1
+      - type: set_value
+        key: escalation.notify_method
+        value: pagerduty
+      - type: tag
+        tag: escalation:L1
+
+  - id: escalation.l2_ack_timeout
+    name: Escalation — L2 (Ack Timeout)
+    description: >
+      Escalate to L2 (team lead / senior) when L1 has not acknowledged
+      within 5 minutes.
+    tags: [escalation, l2]
+    conditions:
+      all:
+        - field: escalation.level
+          op: eq
+          value: L1
+        - field: incident.acknowledged
+          op: eq
+          value: false
+        - field: incident.minutes_since_page
+          op: gte
+          value: 5
+    actions:
+      - type: set_value
+        key: escalation.level
+        value: L2
+      - type: set_value
+        key: escalation.notify_method
+        value: pagerduty
+      - type: set_value
+        key: escalation.notify_sms
+        value: true
+      - type: tag
+        tag: escalation:L2
+
+  - id: escalation.l3_management
+    name: Escalation — L3 Management (Extended Outage)
+    description: >
+      Notify engineering management when a P1 incident remains unresolved
+      after 30 minutes.
+    tags: [escalation, l3, management]
+    conditions:
+      all:
+        - field: alert.priority
+          op: eq
+          value: P1
+        - field: incident.resolved
+          op: eq
+          value: false
+        - field: incident.minutes_since_open
+          op: gte
+          value: 30
+    actions:
+      - type: set_value
+        key: escalation.level
+        value: L3
+      - type: set_value
+        key: escalation.notify_vp_engineering
+        value: true
+      - type: set_value
+        key: escalation.war_room_required
+        value: true
+      - type: tag
+        tag: escalation:L3
+      - type: tag
+        tag: escalation:war_room
+
+  - id: escalation.executive_bridge
+    name: Escalation — Executive Bridge (Major Outage)
+    description: >
+      Open executive bridge call when a P1 outage exceeds 60 minutes or
+      affects more than 10% of customers.
+    tags: [escalation, executive]
+    conditions:
+      any:
+        - all:
+          - field: alert.priority
+            op: eq
+            value: P1
+          - field: incident.minutes_since_open
+            op: gte
+            value: 60
+        - field: incident.customer_impact_pct
+          op: gte
+          value: 10
+    actions:
+      - type: set_value
+        key: escalation.executive_bridge
+        value: true
+      - type: set_value
+        key: escalation.notify_cto
+        value: true
+      - type: set_value
+        key: escalation.notify_ceo
+        value: true
+      - type: tag
+        tag: escalation:executive
+
+  # ── SLA Breach Detection ───────────────────────────────────────────────────
+
+  - id: sla.response_breach_imminent
+    name: SLA — Response Time Breach Imminent (80%)
+    description: >
+      Warn when 80% of the SLA response time window has elapsed without
+      acknowledgment.
+    tags: [sla, response, warning]
+    conditions:
+      all:
+        - field: sla.response_elapsed_pct
+          op: gte
+          value: 80
+        - field: sla.response_elapsed_pct
+          op: lt
+          value: 100
+        - field: incident.acknowledged
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: sla.response_at_risk
+        value: true
+      - type: tag
+        tag: sla:response_at_risk
+
+  - id: sla.response_breached
+    name: SLA — Response Time Breached
+    description: SLA response time has been exceeded — flag for SLA report.
+    tags: [sla, response, breach]
+    conditions:
+      all:
+        - field: sla.response_elapsed_pct
+          op: gte
+          value: 100
+        - field: incident.acknowledged
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: sla.response_breached
+        value: true
+      - type: tag
+        tag: sla:response_breached
+
+  - id: sla.resolution_breach_imminent
+    name: SLA — Resolution Breach Imminent (80%)
+    description: >
+      Warn when 80% of the SLA resolution window has elapsed without
+      the incident being resolved.
+    tags: [sla, resolution, warning]
+    conditions:
+      all:
+        - field: sla.resolution_elapsed_pct
+          op: gte
+          value: 80
+        - field: sla.resolution_elapsed_pct
+          op: lt
+          value: 100
+        - field: incident.resolved
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: sla.resolution_at_risk
+        value: true
+      - type: tag
+        tag: sla:resolution_at_risk
+
+  - id: sla.resolution_breached
+    name: SLA — Resolution Breached
+    description: SLA resolution window has been exceeded.
+    tags: [sla, resolution, breach]
+    conditions:
+      all:
+        - field: sla.resolution_elapsed_pct
+          op: gte
+          value: 100
+        - field: incident.resolved
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: sla.resolution_breached
+        value: true
+      - type: tag
+        tag: sla:resolution_breached
+
+  - id: sla.availability_breach
+    name: SLA — Monthly Availability SLA Breach
+    description: >
+      Current-month availability has dropped below the contracted SLA
+      threshold — trigger compensation workflow.
+    tags: [sla, availability, breach]
+    conditions:
+      all:
+        - field: sla.monthly_availability_pct
+          op: lt
+          value: 99.9
+    actions:
+      - type: set_value
+        key: sla.availability_breached
+        value: true
+      - type: set_value
+        key: sla.compensation_required
+        value: true
+      - type: tag
+        tag: sla:availability_breached
+
+  # ── Runbook Selection ──────────────────────────────────────────────────────
+
+  - id: runbook.high_error_rate
+    name: Runbook — High Error Rate
+    description: Select error-rate runbook for elevated 5xx responses.
+    tags: [runbook]
+    conditions:
+      all:
+        - field: metric.error_rate_pct
+          op: gte
+          value: 1
+    actions:
+      - type: set_value
+        key: runbook.id
+        value: OPS-001
+      - type: set_value
+        key: runbook.title
+        value: "High Error Rate Triage"
+      - type: tag
+        tag: runbook:OPS-001
+
+  - id: runbook.high_latency
+    name: Runbook — High Latency
+    description: Select latency runbook for p99 degradation.
+    tags: [runbook]
+    conditions:
+      all:
+        - field: metric.p99_latency_ms
+          op: gte
+          value: 1000
+    actions:
+      - type: set_value
+        key: runbook.id
+        value: OPS-002
+      - type: set_value
+        key: runbook.title
+        value: "High Latency Triage"
+      - type: tag
+        tag: runbook:OPS-002
+
+  - id: runbook.database_saturation
+    name: Runbook — Database Saturation
+    description: Select DB saturation runbook when connection pool is exhausted.
+    tags: [runbook, database]
+    conditions:
+      any:
+        - field: metric.db_connection_pool_exhausted
+          op: eq
+          value: true
+        - field: metric.db_query_latency_p99_ms
+          op: gte
+          value: 2000
+    actions:
+      - type: set_value
+        key: runbook.id
+        value: OPS-010
+      - type: set_value
+        key: runbook.title
+        value: "Database Saturation Response"
+      - type: tag
+        tag: runbook:OPS-010
+
+  - id: runbook.disk_pressure
+    name: Runbook — Disk Pressure
+    description: Select disk runbook when disk usage approaches capacity.
+    tags: [runbook, disk]
+    conditions:
+      all:
+        - field: metric.disk_usage_pct
+          op: gte
+          value: 80
+    actions:
+      - type: set_value
+        key: runbook.id
+        value: OPS-020
+      - type: set_value
+        key: runbook.title
+        value: "Disk Pressure Remediation"
+      - type: tag
+        tag: runbook:OPS-020
+
+  - id: runbook.pod_crashloopbackoff
+    name: Runbook — Pod CrashLoopBackOff
+    description: Select Kubernetes pod restart runbook.
+    tags: [runbook, kubernetes]
+    conditions:
+      all:
+        - field: alert.labels.alertname
+          op: eq
+          value: KubePodCrashLooping
+    actions:
+      - type: set_value
+        key: runbook.id
+        value: OPS-030
+      - type: set_value
+        key: runbook.title
+        value: "Pod CrashLoopBackOff Investigation"
+      - type: tag
+        tag: runbook:OPS-030
+
+# ---------------------------------------------------------------------------
+# Rulesets
+# ---------------------------------------------------------------------------
+rulesets:
+
+  - id: ops.alert_severity
+    name: Alert Severity Classification
+    description: Classify incoming alert into P1–P4 severity tier.
+    strategy: first_match
+    rules:
+      - alert.critical
+      - alert.high
+      - alert.medium
+      - alert.low
+
+  - id: ops.incident_routing
+    name: Incident Team Routing
+    description: Determine which on-call team owns the incident.
+    strategy: first_match
+    rules:
+      - routing.security_team
+      - routing.database_team
+      - routing.platform_team
+      - routing.app_team
+
+  - id: ops.escalation
+    name: On-Call Escalation Policy
+    description: Drive the escalation ladder based on ack/resolve state and elapsed time.
+    strategy: first_match
+    rules:
+      - escalation.executive_bridge
+      - escalation.l3_management
+      - escalation.l2_ack_timeout
+      - escalation.l1_page
+
+  - id: ops.sla_monitoring
+    name: SLA Breach Monitoring
+    description: Monitor response, resolution, and availability SLA compliance.
+    strategy: all_match
+    rules:
+      - sla.response_breach_imminent
+      - sla.response_breached
+      - sla.resolution_breach_imminent
+      - sla.resolution_breached
+      - sla.availability_breach
+
+  - id: ops.runbook_selection
+    name: Runbook Selection
+    description: Select the appropriate runbook for the active alert type.
+    strategy: first_match
+    rules:
+      - runbook.pod_crashloopbackoff
+      - runbook.database_saturation
+      - runbook.disk_pressure
+      - runbook.high_error_rate
+      - runbook.high_latency

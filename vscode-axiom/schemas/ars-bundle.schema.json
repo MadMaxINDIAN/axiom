@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://axiom-rules.github.io/schemas/ars-bundle.schema.json",
+  "title": "ARS Bundle",
+  "description": "Axiom Rule Schema — bundle file containing multiple rules and optional rulesets",
+  "type": "object",
+  "required": ["ars_version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "ars_version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "default": "1.0"
+    },
+    "bundle": {
+      "type": "object",
+      "description": "Bundle metadata.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Bundle identifier (kebab-case recommended)."
+        },
+        "version": {
+          "type": "string",
+          "description": "SemVer version string.",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable bundle description."
+        },
+        "author": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "description": "List of rule definitions included in the bundle.",
+      "items": { "$ref": "ars-rule.schema.json#/definitions/RuleBody" },
+      "minItems": 1
+    },
+    "rulesets": {
+      "type": "array",
+      "description": "Named rulesets grouping rules under a shared evaluation strategy.",
+      "items": { "$ref": "#/definitions/Ruleset" }
+    }
+  },
+  "definitions": {
+    "Ruleset": {
+      "type": "object",
+      "required": ["id", "rules"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ruleset identifier (dot-notation recommended).",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_\\.\\-]*$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable ruleset name."
+        },
+        "description": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string",
+          "description": "Evaluation strategy.",
+          "enum": ["first_match", "all_match", "scored"],
+          "default": "all_match"
+        },
+        "rules": {
+          "type": "array",
+          "description": "Ordered list of rule IDs to evaluate.",
+          "items": {
+            "type": "string",
+            "description": "Rule ID referencing a rule defined in the 'rules' array."
+          },
+          "minItems": 1
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

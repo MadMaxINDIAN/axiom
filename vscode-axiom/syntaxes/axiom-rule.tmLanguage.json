@@ -1,0 +1,189 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Axiom Rule (ARS)",
+  "scopeName": "source.axiom-rule",
+  "fileTypes": [
+    ".ars.yaml",
+    ".ars.yml",
+    ".ars.json"
+  ],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#document-keys" },
+    { "include": "#condition-operators" },
+    { "include": "#condition-groups" },
+    { "include": "#action-types" },
+    { "include": "#template-expressions" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#booleans" },
+    { "include": "#null-values" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.number-sign.axiom",
+      "match": "#.*$"
+    },
+    "document-keys": {
+      "patterns": [
+        {
+          "name": "keyword.control.ars-version.axiom",
+          "match": "^(ars_version)\\s*:"
+        },
+        {
+          "name": "entity.name.type.rule-id.axiom",
+          "match": "^(id)\\s*:\\s*(.+)$",
+          "captures": {
+            "1": { "name": "keyword.other.id.axiom" },
+            "2": { "name": "entity.name.type.axiom" }
+          }
+        },
+        {
+          "name": "meta.rule.name.axiom",
+          "match": "^(name)\\s*:\\s*(.+)$",
+          "captures": {
+            "1": { "name": "keyword.other.name.axiom" },
+            "2": { "name": "string.unquoted.axiom" }
+          }
+        },
+        {
+          "name": "keyword.other.top-level.axiom",
+          "match": "^(conditions|actions|tags|description|strategy|rules|rulesets|bundle)\\s*:"
+        },
+        {
+          "name": "keyword.other.metadata.axiom",
+          "match": "\\b(enabled|priority|version|author|ruleset)\\s*:"
+        }
+      ]
+    },
+    "condition-groups": {
+      "patterns": [
+        {
+          "name": "keyword.control.condition.all.axiom",
+          "match": "\\b(all)\\s*:"
+        },
+        {
+          "name": "keyword.control.condition.any.axiom",
+          "match": "\\b(any)\\s*:"
+        },
+        {
+          "name": "keyword.control.condition.none.axiom",
+          "match": "\\b(none)\\s*:"
+        },
+        {
+          "name": "keyword.control.condition.not.axiom",
+          "match": "\\b(not)\\s*:"
+        },
+        {
+          "name": "variable.other.field.axiom",
+          "match": "(field)\\s*:\\s*([a-zA-Z0-9_\\.\\[\\]]+)",
+          "captures": {
+            "1": { "name": "keyword.other.field.axiom" },
+            "2": { "name": "variable.other.readwrite.axiom" }
+          }
+        },
+        {
+          "name": "meta.condition.value.axiom",
+          "match": "(value)\\s*:",
+          "captures": {
+            "1": { "name": "keyword.other.value.axiom" }
+          }
+        }
+      ]
+    },
+    "condition-operators": {
+      "patterns": [
+        {
+          "name": "meta.condition.operator.axiom",
+          "match": "(op|operator)\\s*:\\s*(eq|ne|gt|gte|lt|lte|in|not_in|contains|not_contains|starts_with|ends_with|matches|exists|not_exists|between|not_between|is_null|is_not_null)",
+          "captures": {
+            "1": { "name": "keyword.other.operator-key.axiom" },
+            "2": { "name": "keyword.operator.comparison.axiom" }
+          }
+        }
+      ]
+    },
+    "action-types": {
+      "patterns": [
+        {
+          "name": "meta.action.type.axiom",
+          "match": "(type)\\s*:\\s*(approve|decline|flag|tag|set_value|call_rule|trigger|log|notify|set_score|block|allow|redirect|require|noop)",
+          "captures": {
+            "1": { "name": "keyword.other.action-type-key.axiom" },
+            "2": { "name": "support.function.action-type.axiom" }
+          }
+        },
+        {
+          "name": "keyword.other.action.axiom",
+          "match": "\\b(key|tag|value|message|rule_id|event|channel|score|url|reason)\\s*:"
+        }
+      ]
+    },
+    "template-expressions": {
+      "name": "meta.template.axiom",
+      "begin": "\\{\\{",
+      "end": "\\}\\}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.template.begin.axiom" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.template.end.axiom" }
+      },
+      "patterns": [
+        {
+          "name": "variable.other.template.axiom",
+          "match": "[a-zA-Z_][a-zA-Z0-9_\\.\\[\\]]*"
+        },
+        {
+          "name": "support.function.template.axiom",
+          "match": "\\b(now|today|days_since|days_until|len|sum|min|max|avg|round|floor|ceil|abs|lower|upper|trim)\\s*(?=\\()"
+        },
+        {
+          "name": "keyword.operator.template.axiom",
+          "match": "[\\+\\-\\*\\/\\%\\^]|\\b(and|or|not|in|is)\\b"
+        },
+        {
+          "name": "constant.numeric.template.axiom",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.axiom",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.axiom" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.axiom" } },
+          "patterns": [
+            { "include": "#template-expressions" },
+            {
+              "name": "constant.character.escape.axiom",
+              "match": "\\\\[\"\\\\nrbt]"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.axiom",
+          "begin": "'",
+          "end": "'",
+          "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.axiom" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.axiom" } }
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.axiom",
+      "match": "\\b-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+    },
+    "booleans": {
+      "name": "constant.language.boolean.axiom",
+      "match": "\\b(true|false|yes|no|on|off)\\b"
+    },
+    "null-values": {
+      "name": "constant.language.null.axiom",
+      "match": "\\b(null|~)\\b"
+    }
+  }
+}

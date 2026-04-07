@@ -1,0 +1,277 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://axiom-rules.github.io/schemas/ars-rule.schema.json",
+  "title": "ARS Rule",
+  "description": "Axiom Rule Schema — single rule definition",
+  "type": "object",
+  "required": ["ars_version", "id", "conditions", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "ars_version": {
+      "type": "string",
+      "description": "ARS schema version. Must be \"1.0\".",
+      "enum": ["1.0"],
+      "default": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique rule identifier. Use dot-notation namespacing (e.g. 'finance.loan.approve').",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_\\.\\-]*$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable rule name.",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "description": "Longer description explaining the rule's purpose."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether the rule is active. Defaults to true.",
+      "default": true
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Evaluation priority — higher values run first.",
+      "default": 0
+    },
+    "tags": {
+      "type": "array",
+      "description": "Free-form labels for filtering and grouping.",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "conditions": {
+      "$ref": "#/definitions/ConditionGroup",
+      "description": "Root condition group. Must be 'all', 'any', 'none', or 'not'."
+    },
+    "actions": {
+      "type": "array",
+      "description": "Actions executed when conditions match.",
+      "items": { "$ref": "#/definitions/Action" },
+      "minItems": 1
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Arbitrary key-value metadata attached to the rule.",
+      "additionalProperties": true
+    }
+  },
+  "definitions": {
+    "ConditionGroup": {
+      "oneOf": [
+        { "$ref": "#/definitions/AllGroup" },
+        { "$ref": "#/definitions/AnyGroup" },
+        { "$ref": "#/definitions/NoneGroup" },
+        { "$ref": "#/definitions/NotGroup" }
+      ]
+    },
+    "AllGroup": {
+      "type": "object",
+      "required": ["all"],
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "array",
+          "description": "All conditions must be true (logical AND).",
+          "items": { "$ref": "#/definitions/ConditionNode" },
+          "minItems": 1
+        }
+      }
+    },
+    "AnyGroup": {
+      "type": "object",
+      "required": ["any"],
+      "additionalProperties": false,
+      "properties": {
+        "any": {
+          "type": "array",
+          "description": "At least one condition must be true (logical OR).",
+          "items": { "$ref": "#/definitions/ConditionNode" },
+          "minItems": 1
+        }
+      }
+    },
+    "NoneGroup": {
+      "type": "object",
+      "required": ["none"],
+      "additionalProperties": false,
+      "properties": {
+        "none": {
+          "type": "array",
+          "description": "No conditions may be true (logical NOR).",
+          "items": { "$ref": "#/definitions/ConditionNode" },
+          "minItems": 1
+        }
+      }
+    },
+    "NotGroup": {
+      "type": "object",
+      "required": ["not"],
+      "additionalProperties": false,
+      "properties": {
+        "not": {
+          "$ref": "#/definitions/ConditionNode",
+          "description": "Negation of a single condition (logical NOT)."
+        }
+      }
+    },
+    "ConditionNode": {
+      "oneOf": [
+        { "$ref": "#/definitions/LeafCondition" },
+        { "$ref": "#/definitions/AllGroup" },
+        { "$ref": "#/definitions/AnyGroup" },
+        { "$ref": "#/definitions/NoneGroup" },
+        { "$ref": "#/definitions/NotGroup" }
+      ]
+    },
+    "LeafCondition": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Dot-notation path into the evaluation context."
+        },
+        "op": {
+          "$ref": "#/definitions/Operator",
+          "description": "Comparison operator (alias for 'operator')."
+        },
+        "operator": {
+          "$ref": "#/definitions/Operator",
+          "description": "Comparison operator."
+        },
+        "value": {
+          "description": "The value to compare against. Supports template expressions.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "null" },
+            { "type": "array" }
+          ]
+        }
+      }
+    },
+    "Operator": {
+      "type": "string",
+      "enum": [
+        "eq",
+        "ne",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not_in",
+        "contains",
+        "not_contains",
+        "starts_with",
+        "ends_with",
+        "matches",
+        "exists",
+        "not_exists",
+        "between",
+        "not_between",
+        "is_null",
+        "is_not_null"
+      ]
+    },
+    "Action": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Action type.",
+          "enum": [
+            "approve",
+            "decline",
+            "flag",
+            "tag",
+            "set_value",
+            "call_rule",
+            "trigger",
+            "log",
+            "notify",
+            "set_score",
+            "block",
+            "allow",
+            "redirect",
+            "require",
+            "noop"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "set_value" } } },
+          "then": {
+            "required": ["key", "value"],
+            "properties": {
+              "key": { "type": "string", "description": "Output context key to set." },
+              "value": { "description": "Value to assign." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "tag" } } },
+          "then": {
+            "required": ["tag"],
+            "properties": {
+              "tag": { "type": "string", "description": "Tag string to apply." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "call_rule" } } },
+          "then": {
+            "required": ["rule_id"],
+            "properties": {
+              "rule_id": { "type": "string", "description": "ID of the rule to invoke." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "trigger" } } },
+          "then": {
+            "required": ["event"],
+            "properties": {
+              "event": { "type": "string", "description": "Event name to emit." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "log" } } },
+          "then": {
+            "required": ["message"],
+            "properties": {
+              "message": { "type": "string", "description": "Log message. Supports templates." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "set_score" } } },
+          "then": {
+            "required": ["score"],
+            "properties": {
+              "score": { "type": "number", "description": "Score delta to apply." }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "decline" } } },
+          "then": {
+            "properties": {
+              "reason": { "type": "string", "description": "Machine-readable decline reason code." }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

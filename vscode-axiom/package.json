@@ -1,0 +1,275 @@
+{
+  "name": "vscode-axiom",
+  "displayName": "Axiom Rules Engine",
+  "description": "Language support for ARS (Axiom Rule Schema) — syntax highlighting, validation, snippets, and hover documentation.",
+  "version": "0.1.0",
+  "publisher": "axiom-rules",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/axiom-rules/axiom"
+  },
+  "bugs": {
+    "url": "https://github.com/axiom-rules/axiom/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "axiom",
+    "rules",
+    "ars",
+    "rule engine",
+    "yaml"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onLanguage:axiom-rule",
+    "onLanguage:yaml",
+    "workspaceContains:**/bundle.yaml",
+    "workspaceContains:**/*.ars.yaml",
+    "workspaceContains:**/*.ars.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "axiom-rule",
+        "aliases": [
+          "Axiom Rule",
+          "ARS",
+          "ars"
+        ],
+        "extensions": [
+          ".ars.yaml",
+          ".ars.yml",
+          ".ars.json"
+        ],
+        "filenames": [
+          "bundle.yaml",
+          "bundle.yml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "axiom-rule",
+        "scopeName": "source.axiom-rule",
+        "path": "./syntaxes/axiom-rule.tmLanguage.json"
+      },
+      {
+        "injectTo": [
+          "source.yaml"
+        ],
+        "scopeName": "source.axiom-rule.yaml-injection",
+        "path": "./syntaxes/axiom-rule-yaml-injection.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.axiom-rule": "axiom-rule"
+        }
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "*.ars.json",
+        "url": "./schemas/ars-rule.schema.json"
+      },
+      {
+        "fileMatch": "bundle.json",
+        "url": "./schemas/ars-bundle.schema.json"
+      }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": "*.ars.yaml",
+        "url": "./schemas/ars-rule.schema.json"
+      },
+      {
+        "fileMatch": "*.ars.yml",
+        "url": "./schemas/ars-rule.schema.json"
+      },
+      {
+        "fileMatch": "bundle.yaml",
+        "url": "./schemas/ars-bundle.schema.json"
+      },
+      {
+        "fileMatch": "bundle.yml",
+        "url": "./schemas/ars-bundle.schema.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "axiom-rule",
+        "path": "./snippets/axiom-rule.code-snippets"
+      },
+      {
+        "language": "yaml",
+        "path": "./snippets/axiom-rule.code-snippets"
+      }
+    ],
+    "commands": [
+      {
+        "command": "axiom.validateCurrentFile",
+        "title": "Axiom: Validate Current File",
+        "icon": "$(check)"
+      },
+      {
+        "command": "axiom.openVisualBuilder",
+        "title": "Axiom: Open in Visual Builder",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "axiom.previewRule",
+        "title": "Axiom: Preview Rule JSON",
+        "icon": "$(preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "axiom.validateCurrentFile",
+          "when": "resourceLangId == axiom-rule || resourceFilename == bundle.yaml",
+          "group": "navigation"
+        },
+        {
+          "command": "axiom.openVisualBuilder",
+          "when": "resourceLangId == axiom-rule || resourceFilename == bundle.yaml",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "axiom.validateCurrentFile",
+          "when": "resourceLangId == axiom-rule || resourceFilename == bundle.yaml",
+          "group": "axiom"
+        },
+        {
+          "command": "axiom.previewRule",
+          "when": "resourceLangId == axiom-rule",
+          "group": "axiom"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "axiom.validateCurrentFile"
+        },
+        {
+          "command": "axiom.openVisualBuilder"
+        },
+        {
+          "command": "axiom.previewRule"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "axiom.validateCurrentFile",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorTextFocus && (resourceLangId == axiom-rule || resourceFilename == bundle.yaml)"
+      }
+    ],
+    "configuration": {
+      "title": "Axiom Rules Engine",
+      "properties": {
+        "axiom.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Axiom server URL used for live validation and the visual builder."
+        },
+        "axiom.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for authenticating with the Axiom server."
+        },
+        "axiom.validateOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically validate ARS files when saved."
+        },
+        "axiom.enableSemanticHighlighting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable semantic token coloring for operators and field references."
+        },
+        "axiom.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace communication between VS Code and the Axiom language server."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "axiom.conditionAll",
+        "description": "Color for 'all' condition group labels",
+        "defaults": {
+          "dark": "#60a5fa",
+          "light": "#2563eb",
+          "highContrast": "#60a5fa"
+        }
+      },
+      {
+        "id": "axiom.conditionAny",
+        "description": "Color for 'any' condition group labels",
+        "defaults": {
+          "dark": "#34d399",
+          "light": "#059669",
+          "highContrast": "#34d399"
+        }
+      },
+      {
+        "id": "axiom.conditionNot",
+        "description": "Color for 'not' condition group labels",
+        "defaults": {
+          "dark": "#c084fc",
+          "light": "#7c3aed",
+          "highContrast": "#c084fc"
+        }
+      },
+      {
+        "id": "axiom.operator",
+        "description": "Color for comparison operators",
+        "defaults": {
+          "dark": "#fb923c",
+          "light": "#ea580c",
+          "highContrast": "#fb923c"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

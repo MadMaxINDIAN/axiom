@@ -1,0 +1,526 @@
+ars_version: "1.0"
+bundle:
+  name: axiom-compliance
+  version: "1.0.0"
+  description: |
+    KYC/AML identity verification, data residency enforcement, GDPR consent
+    and right-to-erasure rules, and sanctions/PEP screening for regulated
+    financial and SaaS products.
+
+# ---------------------------------------------------------------------------
+# Rules
+# ---------------------------------------------------------------------------
+rules:
+
+  # ── KYC — Identity Verification ───────────────────────────────────────────
+
+  - id: kyc.identity_verified
+    name: KYC — Identity Verified
+    description: User has completed full identity verification.
+    tags: [kyc, identity]
+    conditions:
+      all:
+        - field: kyc.id_document_verified
+          op: eq
+          value: true
+        - field: kyc.selfie_verified
+          op: eq
+          value: true
+        - field: kyc.liveness_check_passed
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: kyc.status
+        value: verified
+      - type: set_value
+        key: kyc.level
+        value: full
+      - type: tag
+        tag: kyc:verified
+
+  - id: kyc.partial
+    name: KYC — Partial Verification
+    description: Identity document verified but biometric check incomplete.
+    tags: [kyc, partial]
+    conditions:
+      all:
+        - field: kyc.id_document_verified
+          op: eq
+          value: true
+        - any:
+          - field: kyc.selfie_verified
+            op: eq
+            value: false
+          - field: kyc.liveness_check_passed
+            op: eq
+            value: false
+    actions:
+      - type: set_value
+        key: kyc.status
+        value: partial
+      - type: set_value
+        key: kyc.level
+        value: basic
+      - type: tag
+        tag: kyc:partial
+
+  - id: kyc.unverified
+    name: KYC — Not Verified
+    description: No identity verification completed — restrict to low-value operations.
+    tags: [kyc, unverified]
+    conditions:
+      all:
+        - field: kyc.id_document_verified
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: kyc.status
+        value: unverified
+      - type: set_value
+        key: kyc.level
+        value: none
+      - type: set_value
+        key: limits.transaction_amount_usd
+        value: 500
+      - type: tag
+        tag: kyc:unverified
+
+  - id: kyc.high_risk_jurisdiction
+    name: KYC — High-Risk Jurisdiction
+    description: Applicant is from a high-risk or FATF-listed jurisdiction.
+    tags: [kyc, jurisdiction, aml]
+    conditions:
+      all:
+        - field: applicant.country_code
+          op: in
+          value: [IR, KP, SY, MM, BY, CU, SD, VE, YE, LY, SO, ZW]
+    actions:
+      - type: set_value
+        key: kyc.enhanced_due_diligence_required
+        value: true
+      - type: set_value
+        key: kyc.manual_review_required
+        value: true
+      - type: tag
+        tag: kyc:high_risk_jurisdiction
+      - type: tag
+        tag: compliance:edd_required
+
+  - id: kyc.enhanced_due_diligence
+    name: KYC — Enhanced Due Diligence Required
+    description: >
+      Trigger EDD workflow for high transaction amounts or high-risk flags
+      even when jurisdiction is not on the primary list.
+    tags: [kyc, edd, aml]
+    conditions:
+      any:
+        - field: kyc.risk_score
+          op: gte
+          value: 80
+        - field: transaction.amount_usd
+          op: gte
+          value: 50000
+        - field: kyc.pep_match
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: kyc.enhanced_due_diligence_required
+        value: true
+      - type: tag
+        tag: compliance:edd_required
+
+  # ── AML — Anti-Money Laundering ────────────────────────────────────────────
+
+  - id: aml.sanctions_match
+    name: AML — Sanctions List Match
+    description: Hard block — applicant or counterparty matched on a sanctions list.
+    tags: [aml, sanctions, block]
+    conditions:
+      any:
+        - field: screening.ofac_match
+          op: eq
+          value: true
+        - field: screening.un_match
+          op: eq
+          value: true
+        - field: screening.eu_match
+          op: eq
+          value: true
+        - field: screening.hm_treasury_match
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: aml.decision
+        value: block
+      - type: set_value
+        key: aml.block_reason
+        value: sanctions_match
+      - type: set_value
+        key: transaction.allowed
+        value: false
+      - type: tag
+        tag: aml:blocked
+      - type: tag
+        tag: compliance:sanctions_hit
+
+  - id: aml.pep_detected
+    name: AML — Politically Exposed Person
+    description: PEP detected — require enhanced due diligence and manual sign-off.
+    tags: [aml, pep]
+    conditions:
+      all:
+        - field: screening.pep_match
+          op: eq
+          value: true
+    actions:
+      - type: set_value
+        key: aml.pep_detected
+        value: true
+      - type: set_value
+        key: kyc.manual_review_required
+        value: true
+      - type: tag
+        tag: aml:pep
+      - type: tag
+        tag: compliance:edd_required
+
+  - id: aml.structuring_detected
+    name: AML — Potential Structuring (Smurfing)
+    description: >
+      Multiple transactions below reporting threshold within 24 h that
+      collectively exceed it — possible structuring activity.
+    tags: [aml, structuring]
+    conditions:
+      all:
+        - field: aml.transactions_last_24h
+          op: gte
+          value: 3
+        - field: aml.transactions_last_24h_total_usd
+          op: gte
+          value: 9000
+        - field: aml.max_single_transaction_usd
+          op: lt
+          value: 10000
+    actions:
+      - type: set_value
+        key: aml.structuring_suspected
+        value: true
+      - type: set_value
+        key: aml.sar_required
+        value: true
+      - type: tag
+        tag: aml:structuring
+      - type: tag
+        tag: compliance:sar_required
+
+  - id: aml.large_cash_transaction
+    name: AML — Large Cash Transaction Report
+    description: Transaction ≥ $10,000 requires Currency Transaction Report (CTR).
+    tags: [aml, ctr, reporting]
+    conditions:
+      all:
+        - field: transaction.payment_method
+          op: eq
+          value: cash
+        - field: transaction.amount_usd
+          op: gte
+          value: 10000
+    actions:
+      - type: set_value
+        key: aml.ctr_required
+        value: true
+      - type: tag
+        tag: aml:ctr_required
+
+  # ── Data Residency ─────────────────────────────────────────────────────────
+
+  - id: residency.eu_data_eu_only
+    name: Data Residency — EU Data Must Stay in EU
+    description: >
+      Prevent EU personal data from being stored or processed outside the EU/EEA.
+    tags: [residency, gdpr, eu]
+    conditions:
+      all:
+        - field: data.subject_region
+          op: eq
+          value: EU
+        - field: processing.region
+          op: not_in
+          value: [eu-west-1, eu-west-2, eu-west-3, eu-central-1, eu-north-1, eu-south-1]
+    actions:
+      - type: set_value
+        key: processing.allowed
+        value: false
+      - type: set_value
+        key: processing.block_reason
+        value: data_residency_violation
+      - type: tag
+        tag: residency:violation
+      - type: tag
+        tag: compliance:gdpr_residency
+
+  - id: residency.us_gov_us_only
+    name: Data Residency — US GovCloud Data Must Stay in US
+    description: US government data must remain in FedRAMP-authorized US regions.
+    tags: [residency, us-gov, fedramp]
+    conditions:
+      all:
+        - field: account.compliance_tier
+          op: eq
+          value: us_gov
+        - field: processing.region
+          op: not_in
+          value: [us-gov-east-1, us-gov-west-1, us-east-1, us-east-2, us-west-1, us-west-2]
+    actions:
+      - type: set_value
+        key: processing.allowed
+        value: false
+      - type: set_value
+        key: processing.block_reason
+        value: fedramp_residency_violation
+      - type: tag
+        tag: residency:violation
+      - type: tag
+        tag: compliance:fedramp
+
+  - id: residency.india_data_india_only
+    name: Data Residency — India RBI Localization
+    description: Financial data of Indian residents must be stored within India (RBI mandate).
+    tags: [residency, rbi, india]
+    conditions:
+      all:
+        - field: data.subject_country
+          op: eq
+          value: IN
+        - field: data.category
+          op: in
+          value: [financial, payment]
+        - field: processing.region
+          op: not_in
+          value: [ap-south-1, ap-south-2]
+    actions:
+      - type: set_value
+        key: processing.allowed
+        value: false
+      - type: set_value
+        key: processing.block_reason
+        value: rbi_localization_violation
+      - type: tag
+        tag: residency:violation
+      - type: tag
+        tag: compliance:rbi
+
+  # ── GDPR ───────────────────────────────────────────────────────────────────
+
+  - id: gdpr.consent_required
+    name: GDPR — Processing Without Consent Blocked
+    description: >
+      Block processing of personal data when no valid consent basis exists
+      and no legitimate interest has been documented.
+    tags: [gdpr, consent]
+    conditions:
+      all:
+        - field: data.subject_region
+          op: eq
+          value: EU
+        - field: gdpr.consent_given
+          op: eq
+          value: false
+        - field: gdpr.legitimate_interest_documented
+          op: eq
+          value: false
+        - field: gdpr.legal_obligation
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: processing.allowed
+        value: false
+      - type: set_value
+        key: processing.block_reason
+        value: gdpr_no_lawful_basis
+      - type: tag
+        tag: gdpr:blocked
+      - type: tag
+        tag: compliance:gdpr_consent
+
+  - id: gdpr.right_to_erasure
+    name: GDPR — Right to Erasure (Article 17)
+    description: >
+      Data subject has invoked Article 17; schedule deletion of all personal
+      data within 30 days unless a retention exception applies.
+    tags: [gdpr, erasure, dsar]
+    conditions:
+      all:
+        - field: dsar.request_type
+          op: eq
+          value: erasure
+        - field: gdpr.retention_exception
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: gdpr.deletion_scheduled
+        value: true
+      - type: set_value
+        key: gdpr.deletion_deadline_days
+        value: 30
+      - type: tag
+        tag: gdpr:erasure_pending
+      - type: tag
+        tag: dsar:erasure
+
+  - id: gdpr.right_to_portability
+    name: GDPR — Right to Data Portability (Article 20)
+    description: Fulfil a data portability request in machine-readable format within 30 days.
+    tags: [gdpr, portability, dsar]
+    conditions:
+      all:
+        - field: dsar.request_type
+          op: eq
+          value: portability
+        - field: data.subject_region
+          op: eq
+          value: EU
+    actions:
+      - type: set_value
+        key: gdpr.portability_export_required
+        value: true
+      - type: set_value
+        key: gdpr.response_deadline_days
+        value: 30
+      - type: tag
+        tag: gdpr:portability_pending
+
+  - id: gdpr.consent_withdrawn
+    name: GDPR — Consent Withdrawn
+    description: Halt all consent-based processing immediately when consent is withdrawn.
+    tags: [gdpr, consent, withdraw]
+    conditions:
+      all:
+        - field: gdpr.consent_withdrawn
+          op: eq
+          value: true
+        - field: gdpr.processing_basis
+          op: eq
+          value: consent
+    actions:
+      - type: set_value
+        key: processing.allowed
+        value: false
+      - type: set_value
+        key: gdpr.consent_given
+        value: false
+      - type: tag
+        tag: gdpr:consent_withdrawn
+
+  # ── Sanctions — name screening ─────────────────────────────────────────────
+
+  - id: screening.fuzzy_match_review
+    name: Screening — Fuzzy Name Match (Review Required)
+    description: >
+      Fuzzy match score above threshold but below exact-match confidence —
+      queue for manual review rather than hard block.
+    tags: [screening, fuzzy-match, review]
+    conditions:
+      all:
+        - field: screening.fuzzy_match_score
+          op: gte
+          value: 75
+        - field: screening.fuzzy_match_score
+          op: lt
+          value: 95
+        - field: screening.exact_match
+          op: eq
+          value: false
+    actions:
+      - type: set_value
+        key: screening.requires_review
+        value: true
+      - type: set_value
+        key: kyc.manual_review_required
+        value: true
+      - type: tag
+        tag: screening:fuzzy_match
+      - type: tag
+        tag: compliance:manual_review
+
+  - id: screening.clear
+    name: Screening — Clear
+    description: No screening hits found; proceed with normal processing.
+    tags: [screening, clear]
+    conditions:
+      all:
+        - field: screening.ofac_match
+          op: eq
+          value: false
+        - field: screening.pep_match
+          op: eq
+          value: false
+        - field: screening.fuzzy_match_score
+          op: lt
+          value: 75
+    actions:
+      - type: set_value
+        key: screening.result
+        value: clear
+      - type: tag
+        tag: screening:clear
+
+# ---------------------------------------------------------------------------
+# Rulesets
+# ---------------------------------------------------------------------------
+rulesets:
+
+  - id: compliance.kyc
+    name: KYC Verification
+    description: Determine KYC level and EDD requirements for an applicant.
+    strategy: all_match
+    rules:
+      - kyc.identity_verified
+      - kyc.partial
+      - kyc.unverified
+      - kyc.high_risk_jurisdiction
+      - kyc.enhanced_due_diligence
+
+  - id: compliance.aml
+    name: AML Screening & Reporting
+    description: AML checks — sanctions, PEP, structuring detection, CTR requirements.
+    strategy: all_match
+    rules:
+      - aml.sanctions_match
+      - aml.pep_detected
+      - aml.structuring_detected
+      - aml.large_cash_transaction
+
+  - id: compliance.screening
+    name: Name & Entity Screening
+    description: Run screening results through match-confidence classification.
+    strategy: first_match
+    rules:
+      - aml.sanctions_match
+      - screening.fuzzy_match_review
+      - screening.clear
+
+  - id: compliance.data_residency
+    name: Data Residency Enforcement
+    description: Block cross-border data flows that violate residency requirements.
+    strategy: all_match
+    rules:
+      - residency.eu_data_eu_only
+      - residency.us_gov_us_only
+      - residency.india_data_india_only
+
+  - id: compliance.gdpr
+    name: GDPR Compliance
+    description: GDPR consent, erasure, portability, and withdrawal processing.
+    strategy: all_match
+    rules:
+      - gdpr.consent_required
+      - gdpr.consent_withdrawn
+      - gdpr.right_to_erasure
+      - gdpr.right_to_portability

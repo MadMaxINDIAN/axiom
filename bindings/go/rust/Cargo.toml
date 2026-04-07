@@ -1,0 +1,17 @@
+[package]
+name        = "axiom-go-sys"
+description = "Axiom rules engine — C FFI layer for Go cgo binding"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+[lib]
+name      = "axiom_go"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+axiom-core  = { path = "../../../crates/axiom-core" }
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }

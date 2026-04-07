@@ -6,6 +6,7 @@ members = [
     "bindings/node",
     "bindings/java/rust",
     "bindings/python",
+    "bindings/go/rust",
 ]
 resolver = "2"
 

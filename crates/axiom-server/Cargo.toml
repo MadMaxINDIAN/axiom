@@ -1,0 +1,42 @@
+[package]
+name        = "axiom-server"
+description = "Axiom rules engine — Axum REST server"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+[[bin]]
+name = "axiom-server"
+path = "src/main.rs"
+
+[dependencies]
+axiom-core = { path = "../axiom-core" }
+
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tokio       = { workspace = true }
+axum        = { workspace = true }
+tower       = { workspace = true }
+tower-http  = { workspace = true }
+sqlx        = { workspace = true }
+sha2        = { workspace = true }
+hex         = { workspace = true }
+rand        = { workspace = true }
+uuid        = { workspace = true }
+chrono      = { workspace = true }
+tracing             = { workspace = true }
+tracing-subscriber  = { workspace = true }
+prometheus  = { workspace = true }
+config          = { workspace = true }
+clap            = { workspace = true }
+async-trait     = { workspace = true }
+lazy_static     = { workspace = true }
+hmac            = "0.12"
+num_cpus        = "1"
+reqwest         = { workspace = true }
+notify          = "6"

@@ -1,0 +1,341 @@
+# axiom-ecommerce — E-commerce module bundle
+# Covers: dynamic pricing, discount eligibility, promotion selection, shipping
+# Import with: axiom import modules/axiom-ecommerce/bundle.yaml --server http://localhost:8080
+
+rules:
+
+  # ── Dynamic pricing ───────────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: ecommerce.pricing.flash-sale
+    name: Pricing — Flash Sale
+    description: Apply a 20% discount when a flash sale is active.
+    version: 1
+    priority: 90
+    enabled: true
+    tags: [ecommerce, pricing]
+    conditions:
+      all:
+        - field: store.flash_sale_active
+          op: eq
+          value: true
+    actions:
+      - type: set
+        field: pricing.discount_pct
+        value: 20
+      - type: set
+        field: pricing.reason
+        value: flash_sale
+      - type: tag
+        value: flash-sale
+
+  - ars_version: 1
+    id: ecommerce.pricing.clearance
+    name: Pricing — Clearance Item
+    description: Items tagged "clearance" receive a 30% discount.
+    version: 1
+    priority: 85
+    enabled: true
+    tags: [ecommerce, pricing]
+    conditions:
+      all:
+        - field: product.tags
+          op: contains
+          value: clearance
+    actions:
+      - type: set
+        field: pricing.discount_pct
+        value: 30
+      - type: set
+        field: pricing.reason
+        value: clearance
+      - type: tag
+        value: clearance-priced
+
+  - ars_version: 1
+    id: ecommerce.pricing.bulk-discount
+    name: Pricing — Bulk Discount
+    description: Orders of 10+ units get a 10% discount.
+    version: 1
+    priority: 80
+    enabled: true
+    tags: [ecommerce, pricing]
+    conditions:
+      all:
+        - field: order.quantity
+          op: gte
+          value: 10
+    actions:
+      - type: set
+        field: pricing.discount_pct
+        value: 10
+      - type: set
+        field: pricing.reason
+        value: bulk
+      - type: tag
+        value: bulk-discount
+
+  - ars_version: 1
+    id: ecommerce.pricing.premium-member
+    name: Pricing — Premium Member Discount
+    description: Premium members always get at least 5% off.
+    version: 1
+    priority: 70
+    enabled: true
+    tags: [ecommerce, pricing, membership]
+    conditions:
+      all:
+        - field: customer.membership_tier
+          op: eq
+          value: premium
+    actions:
+      - type: set
+        field: pricing.member_discount_pct
+        value: 5
+      - type: tag
+        value: member-discount
+
+  # ── Coupon / discount eligibility ─────────────────────────────────────────
+
+  - ars_version: 1
+    id: ecommerce.discount.first-order
+    name: Discount — First Order
+    description: New customers with zero prior orders receive a $10 voucher.
+    version: 1
+    priority: 60
+    enabled: true
+    tags: [ecommerce, discount]
+    conditions:
+      all:
+        - field: customer.order_count
+          op: eq
+          value: 0
+    actions:
+      - type: set
+        field: discount.voucher_amount
+        value: 10
+      - type: set
+        field: discount.reason
+        value: first_order
+      - type: tag
+        value: first-order-voucher
+
+  - ars_version: 1
+    id: ecommerce.discount.loyalty-100
+    name: Discount — Loyalty $100 Milestone
+    description: Customers who have spent $100+ lifetime receive a 5% loyalty coupon.
+    version: 1
+    priority: 55
+    enabled: true
+    tags: [ecommerce, discount, loyalty]
+    conditions:
+      all:
+        - field: customer.lifetime_spend
+          op: gte
+          value: 100
+    actions:
+      - type: set
+        field: discount.loyalty_coupon_pct
+        value: 5
+      - type: tag
+        value: loyalty-discount
+
+  - ars_version: 1
+    id: ecommerce.discount.loyalty-500
+    name: Discount — Loyalty $500 Milestone
+    description: Customers who have spent $500+ lifetime receive a 10% loyalty coupon.
+    version: 1
+    priority: 56
+    enabled: true
+    tags: [ecommerce, discount, loyalty]
+    conditions:
+      all:
+        - field: customer.lifetime_spend
+          op: gte
+          value: 500
+    actions:
+      - type: set
+        field: discount.loyalty_coupon_pct
+        value: 10
+      - type: tag
+        value: loyalty-discount-plus
+
+  # ── Promotion selection ───────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: ecommerce.promo.cart-over-50
+    name: Promo — Cart Over $50
+    description: Orders over $50 qualify for free standard shipping promotion.
+    version: 1
+    priority: 40
+    enabled: true
+    tags: [ecommerce, promo]
+    conditions:
+      all:
+        - field: cart.subtotal
+          op: gt
+          value: 50
+    actions:
+      - type: set
+        field: promo.free_standard_shipping
+        value: true
+      - type: tag
+        value: promo-free-shipping
+
+  - ars_version: 1
+    id: ecommerce.promo.cart-over-100
+    name: Promo — Cart Over $100
+    description: Orders over $100 unlock a free gift item.
+    version: 1
+    priority: 41
+    enabled: true
+    tags: [ecommerce, promo]
+    conditions:
+      all:
+        - field: cart.subtotal
+          op: gt
+          value: 100
+    actions:
+      - type: set
+        field: promo.free_gift
+        value: true
+      - type: tag
+        value: promo-free-gift
+
+  - ars_version: 1
+    id: ecommerce.promo.birthday
+    name: Promo — Birthday Month
+    description: Customers shopping in their birth month get a $5 birthday discount.
+    version: 1
+    priority: 35
+    enabled: true
+    tags: [ecommerce, promo, birthday]
+    conditions:
+      all:
+        - field: customer.birth_month
+          op: eq
+          value: "{{ order.month }}"
+    actions:
+      - type: set
+        field: discount.birthday_amount
+        value: 5
+      - type: tag
+        value: birthday-promo
+
+  # ── Shipping rules ────────────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: ecommerce.shipping.express-eligible
+    name: Shipping — Express Eligible
+    description: In-stock items under 10 kg in the domestic zone qualify for express.
+    version: 1
+    priority: 20
+    enabled: true
+    tags: [ecommerce, shipping]
+    conditions:
+      all:
+        - field: product.in_stock
+          op: eq
+          value: true
+        - field: product.weight_kg
+          op: lte
+          value: 10
+        - field: shipping.zone
+          op: eq
+          value: domestic
+    actions:
+      - type: set
+        field: shipping.express_available
+        value: true
+      - type: tag
+        value: shipping-express-eligible
+
+  - ars_version: 1
+    id: ecommerce.shipping.international-surcharge
+    name: Shipping — International Surcharge
+    description: International orders incur a $15 surcharge.
+    version: 1
+    priority: 19
+    enabled: true
+    tags: [ecommerce, shipping]
+    conditions:
+      all:
+        - field: shipping.zone
+          op: eq
+          value: international
+    actions:
+      - type: set
+        field: shipping.surcharge
+        value: 15
+      - type: tag
+        value: shipping-international
+
+  - ars_version: 1
+    id: ecommerce.shipping.hazmat-ground-only
+    name: Shipping — Hazmat Ground Only
+    description: Hazardous items may only ship via ground service.
+    version: 1
+    priority: 95
+    enabled: true
+    tags: [ecommerce, shipping, compliance]
+    conditions:
+      all:
+        - field: product.hazmat
+          op: eq
+          value: true
+    actions:
+      - type: set
+        field: shipping.express_available
+        value: false
+      - type: set
+        field: shipping.method
+        value: ground
+      - type: tag
+        value: shipping-hazmat
+
+rulesets:
+  - name: ecommerce.pricing
+    description: Dynamic pricing rules — run AllMatch to accumulate all applicable discounts.
+    rule_ids:
+      - ecommerce.pricing.flash-sale
+      - ecommerce.pricing.clearance
+      - ecommerce.pricing.bulk-discount
+      - ecommerce.pricing.premium-member
+
+  - name: ecommerce.discounts
+    description: Coupon and loyalty discount eligibility.
+    rule_ids:
+      - ecommerce.discount.first-order
+      - ecommerce.discount.loyalty-100
+      - ecommerce.discount.loyalty-500
+
+  - name: ecommerce.promotions
+    description: Promotion and upsell rules.
+    rule_ids:
+      - ecommerce.promo.cart-over-50
+      - ecommerce.promo.cart-over-100
+      - ecommerce.promo.birthday
+
+  - name: ecommerce.shipping
+    description: Shipping eligibility and surcharge rules.
+    rule_ids:
+      - ecommerce.shipping.hazmat-ground-only
+      - ecommerce.shipping.express-eligible
+      - ecommerce.shipping.international-surcharge
+
+  - name: ecommerce.checkout
+    description: Full checkout pipeline — pricing + discounts + promos + shipping.
+    rule_ids:
+      - ecommerce.pricing.flash-sale
+      - ecommerce.pricing.clearance
+      - ecommerce.pricing.bulk-discount
+      - ecommerce.pricing.premium-member
+      - ecommerce.discount.first-order
+      - ecommerce.discount.loyalty-100
+      - ecommerce.discount.loyalty-500
+      - ecommerce.promo.cart-over-50
+      - ecommerce.promo.cart-over-100
+      - ecommerce.promo.birthday
+      - ecommerce.shipping.hazmat-ground-only
+      - ecommerce.shipping.express-eligible
+      - ecommerce.shipping.international-surcharge

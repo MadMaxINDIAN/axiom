@@ -1,0 +1,27 @@
+[package]
+name        = "axiom-cli"
+description = "Axiom rules engine — CLI"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+[[bin]]
+name = "axiom"
+path = "src/main.rs"
+
+[dependencies]
+axiom-core = { path = "../axiom-core" }
+
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tokio       = { workspace = true }
+clap        = { workspace = true }
+reqwest     = { workspace = true }
+sha2        = { workspace = true }
+hex         = { workspace = true }
+rand        = { workspace = true }

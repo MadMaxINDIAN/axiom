@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://axiom-rules.io/schema/ars-v1.json",
+  "title": "Axiom Rule Schema v1",
+  "description": "ARS — the open, language-neutral wire format for all Axiom rule definitions.",
+  "type": "object",
+  "required": ["ars_version", "id", "name", "version", "conditions", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "ars_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "ARS schema version. Must be 1."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-_]*$",
+      "description": "Globally unique slug, e.g. loan-eligibility-check"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable display name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Free-text explanation for rule authors"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing version number"
+    },
+    "priority": {
+      "type": "integer",
+      "default": 0,
+      "description": "Evaluation order within ruleset; higher = earlier"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, rule is skipped in all evaluations"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "extends": {
+      "type": "string",
+      "description": "[P2] ID of a base rule to inherit conditions from"
+    },
+    "conditions": { "$ref": "#/$defs/ConditionGroup" },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Action" }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Arbitrary key-value pairs for tooling (author, ticket, etc.)"
+    }
+  },
+  "$defs": {
+    "ConditionGroup": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["all"],
+          "additionalProperties": false,
+          "properties": {
+            "all": { "type": "array", "items": { "$ref": "#/$defs/ConditionNode" } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "additionalProperties": false,
+          "properties": {
+            "any": { "type": "array", "items": { "$ref": "#/$defs/ConditionNode" } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["none"],
+          "additionalProperties": false,
+          "properties": {
+            "none": { "type": "array", "items": { "$ref": "#/$defs/ConditionNode" } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "additionalProperties": false,
+          "description": "Accepts exactly one child node. For multi-child NOR use 'none'.",
+          "properties": {
+            "not": { "$ref": "#/$defs/ConditionNode" }
+          }
+        }
+      ]
+    },
+    "ConditionNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/ConditionGroup" },
+        { "$ref": "#/$defs/LeafCondition" }
+      ]
+    },
+    "LeafCondition": {
+      "type": "object",
+      "required": ["field", "operator"],
+      "additionalProperties": false,
+      "properties": {
+        "field":    { "type": "string", "minLength": 1 },
+        "operator": { "$ref": "#/$defs/Operator" },
+        "value":    {},
+        "field2":   { "type": "string", "description": "Cross-field: compare field vs context[field2]" }
+      }
+    },
+    "Operator": {
+      "type": "string",
+      "enum": [
+        "eq","neq","gt","gte","lt","lte",
+        "contains","starts_with","ends_with","matches","in","not_in",
+        "between","outside","divisible_by",
+        "is_null","is_not_null","is_empty","is_not_empty",
+        "before","after","within_days","is_weekday","is_weekend",
+        "contains_any","contains_all","length_eq","length_gt","length_lt",
+        "is_type",
+        "field_gt_field","field_eq_field"
+      ]
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "field", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "set" },
+            "field": { "type": "string" },
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "field"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "increment" },
+            "field": { "type": "string" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "field", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "append" },
+            "field": { "type": "string" },
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "tag" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "event"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "trigger" },
+            "event": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "rule_id"],
+          "additionalProperties": false,
+          "properties": {
+            "type":    { "type": "string", "const": "call_rule" },
+            "rule_id": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type":  { "type": "string", "const": "return" },
+            "value": {}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "level", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "type":    { "type": "string", "const": "log" },
+            "level":   { "type": "string", "enum": ["debug","info","warn"] },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

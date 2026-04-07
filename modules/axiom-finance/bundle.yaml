@@ -1,0 +1,317 @@
+# axiom-finance — Finance module bundle
+# Covers: loan eligibility, credit scoring, fraud detection
+# Import with: axiom import modules/axiom-finance/bundle.yaml --server http://localhost:8080
+
+rules:
+
+  # ── Loan eligibility ──────────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: finance.loan.income-check
+    name: Loan — Minimum Income
+    description: Applicant must earn at least $30,000/year.
+    version: 1
+    priority: 30
+    enabled: true
+    tags: [finance, loan]
+    conditions:
+      all:
+        - field: applicant.annual_income
+          op: gte
+          value: 30000
+    actions:
+      - type: set
+        field: loan.income_pass
+        value: true
+
+  - ars_version: 1
+    id: finance.loan.credit-score-check
+    name: Loan — Minimum Credit Score
+    description: Applicant must have a FICO score of at least 620.
+    version: 1
+    priority: 29
+    enabled: true
+    tags: [finance, loan]
+    conditions:
+      all:
+        - field: applicant.credit_score
+          op: gte
+          value: 620
+    actions:
+      - type: set
+        field: loan.credit_pass
+        value: true
+
+  - ars_version: 1
+    id: finance.loan.dti-check
+    name: Loan — Debt-to-Income Ratio
+    description: Monthly debt must not exceed 43% of monthly income (standard QM limit).
+    version: 1
+    priority: 28
+    enabled: true
+    tags: [finance, loan]
+    conditions:
+      all:
+        - field: applicant.monthly_debt
+          op: lte
+          value: "{{ applicant.monthly_income * 0.43 }}"
+    actions:
+      - type: set
+        field: loan.dti_pass
+        value: true
+
+  - ars_version: 1
+    id: finance.loan.approve
+    name: Loan — Final Approval
+    description: Approve when all three sub-checks pass.
+    version: 1
+    priority: 10
+    enabled: true
+    tags: [finance, loan]
+    conditions:
+      all:
+        - field: loan.income_pass
+          op: eq
+          value: true
+        - field: loan.credit_pass
+          op: eq
+          value: true
+        - field: loan.dti_pass
+          op: eq
+          value: true
+    actions:
+      - type: set
+        field: loan.approved
+        value: true
+      - type: tag
+        value: loan-approved
+      - type: log
+        level: info
+        message: "Loan approved for {{ applicant.id }}"
+
+  - ars_version: 1
+    id: finance.loan.decline
+    name: Loan — Decline
+    description: Decline when any required check has not passed.
+    version: 1
+    priority: 9
+    enabled: true
+    tags: [finance, loan]
+    conditions:
+      any:
+        - field: loan.income_pass
+          op: neq
+          value: true
+        - field: loan.credit_pass
+          op: neq
+          value: true
+        - field: loan.dti_pass
+          op: neq
+          value: true
+    actions:
+      - type: set
+        field: loan.approved
+        value: false
+      - type: tag
+        value: loan-declined
+
+  # ── Credit scoring tiers ──────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: finance.credit.tier-excellent
+    name: Credit — Excellent Tier
+    description: 750+ maps to "excellent" credit tier.
+    version: 1
+    priority: 50
+    enabled: true
+    tags: [finance, credit]
+    conditions:
+      all:
+        - field: applicant.credit_score
+          op: gte
+          value: 750
+    actions:
+      - type: set
+        field: credit.tier
+        value: excellent
+      - type: set
+        field: credit.max_rate_bps
+        value: 250
+      - type: tag
+        value: credit-excellent
+
+  - ars_version: 1
+    id: finance.credit.tier-good
+    name: Credit — Good Tier
+    description: 700–749 maps to "good" credit tier.
+    version: 1
+    priority: 49
+    enabled: true
+    tags: [finance, credit]
+    conditions:
+      all:
+        - field: applicant.credit_score
+          op: gte
+          value: 700
+        - field: applicant.credit_score
+          op: lt
+          value: 750
+    actions:
+      - type: set
+        field: credit.tier
+        value: good
+      - type: set
+        field: credit.max_rate_bps
+        value: 350
+      - type: tag
+        value: credit-good
+
+  - ars_version: 1
+    id: finance.credit.tier-fair
+    name: Credit — Fair Tier
+    description: 620–699 maps to "fair" credit tier.
+    version: 1
+    priority: 48
+    enabled: true
+    tags: [finance, credit]
+    conditions:
+      all:
+        - field: applicant.credit_score
+          op: gte
+          value: 620
+        - field: applicant.credit_score
+          op: lt
+          value: 700
+    actions:
+      - type: set
+        field: credit.tier
+        value: fair
+      - type: set
+        field: credit.max_rate_bps
+        value: 500
+      - type: tag
+        value: credit-fair
+
+  - ars_version: 1
+    id: finance.credit.tier-poor
+    name: Credit — Poor Tier
+    description: Below 620 maps to "poor" credit tier — automatic decline.
+    version: 1
+    priority: 47
+    enabled: true
+    tags: [finance, credit]
+    conditions:
+      all:
+        - field: applicant.credit_score
+          op: lt
+          value: 620
+    actions:
+      - type: set
+        field: credit.tier
+        value: poor
+      - type: set
+        field: loan.approved
+        value: false
+      - type: tag
+        value: credit-poor
+      - type: tag
+        value: loan-declined
+
+  # ── Fraud detection ───────────────────────────────────────────────────────
+
+  - ars_version: 1
+    id: finance.fraud.large-foreign-tx
+    name: Fraud — Large Foreign Transaction
+    description: >
+      Transactions over $5,000 from a country different from the account's home country
+      are flagged for manual review.
+    version: 1
+    priority: 80
+    enabled: true
+    tags: [finance, fraud]
+    conditions:
+      all:
+        - field: transaction.amount
+          op: gt
+          value: 5000
+        - field: transaction.country
+          op: neq
+          value: "{{ account.home_country }}"
+    actions:
+      - type: set
+        field: fraud.flagged
+        value: true
+      - type: set
+        field: fraud.reason
+        value: large_foreign_transaction
+      - type: tag
+        value: fraud-review
+      - type: trigger
+        event: fraud.review_required
+
+  - ars_version: 1
+    id: finance.fraud.velocity-check
+    name: Fraud — High Transaction Velocity
+    description: More than 10 transactions in the last hour triggers a velocity flag.
+    version: 1
+    priority: 79
+    enabled: true
+    tags: [finance, fraud]
+    conditions:
+      all:
+        - field: account.tx_count_last_hour
+          op: gt
+          value: 10
+    actions:
+      - type: set
+        field: fraud.velocity_flagged
+        value: true
+      - type: tag
+        value: fraud-velocity
+      - type: trigger
+        event: fraud.velocity_alert
+
+  - ars_version: 1
+    id: finance.fraud.new-payee-large
+    name: Fraud — Large Payment to New Payee
+    description: >
+      First-time payees receiving more than $1,000 require additional verification.
+    version: 1
+    priority: 78
+    enabled: true
+    tags: [finance, fraud]
+    conditions:
+      all:
+        - field: payee.is_new
+          op: eq
+          value: true
+        - field: transaction.amount
+          op: gt
+          value: 1000
+    actions:
+      - type: set
+        field: fraud.requires_2fa
+        value: true
+      - type: tag
+        value: fraud-new-payee
+
+rulesets:
+  - name: finance.loan-application
+    description: Full loan application pipeline — run in AllMatch strategy.
+    rule_ids:
+      - finance.loan.income-check
+      - finance.loan.credit-score-check
+      - finance.loan.dti-check
+      - finance.credit.tier-excellent
+      - finance.credit.tier-good
+      - finance.credit.tier-fair
+      - finance.credit.tier-poor
+      - finance.loan.approve
+      - finance.loan.decline
+
+  - name: finance.fraud-screening
+    description: Fraud detection rules for payment processing.
+    rule_ids:
+      - finance.fraud.large-foreign-tx
+      - finance.fraud.velocity-check
+      - finance.fraud.new-payee-large

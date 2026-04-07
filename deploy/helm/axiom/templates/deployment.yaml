@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axiom.fullname" . }}
+  labels:
+    {{- include "axiom.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "axiom.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Force pod rollout when ConfigMap changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "axiom.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "axiom.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: axiom
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "axiom.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: AXIOM_LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: AXIOM_STORAGE_BACKEND
+              value: {{ .Values.storage.backend | quote }}
+            {{- if eq .Values.storage.backend "postgres" }}
+            {{- if .Values.storage.existingSecret }}
+            - name: AXIOM_STORAGE_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storage.existingSecret }}
+                  key: {{ .Values.storage.existingSecretKey }}
+            {{- else if .Values.storage.postgresUrl }}
+            - name: AXIOM_STORAGE_POSTGRES_URL
+              value: {{ .Values.storage.postgresUrl | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.apiKeysSecretName }}
+            - name: AXIOM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.apiKeysSecretName }}
+                  key: AXIOM_API_KEY
+                  optional: true
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /axiom.yaml
+              subPath: axiom.yaml
+              readOnly: true
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "axiom.fullname" . }}
+        - name: data
+          {{- if and .Values.persistence.enabled (eq .Values.storage.backend "sqlite") }}
+          persistentVolumeClaim:
+            claimName: {{ include "axiom.fullname" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "axiom-rules"
+description = "Axiom rules engine — Python binding"
+version = "0.1.0"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Axiom Contributors" }]
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-asyncio>=0.23"]
+
+[tool.maturin]
+# The Rust crate lives one level up from this pyproject.toml
+# (bindings/python/Cargo.toml → lib name = "axiom_rules")
+features = ["pyo3/extension-module"]
+module-name = "axiom_rules._axiom_rules"
+python-source = "python"

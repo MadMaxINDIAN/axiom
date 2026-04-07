@@ -1,0 +1,20 @@
+[package]
+name        = "axiom-python"
+description = "Axiom rules engine — PyO3 Python binding"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+# maturin requires a cdylib target
+[lib]
+name      = "axiom_rules"
+crate-type = ["cdylib"]
+
+[dependencies]
+axiom-core  = { path = "../../crates/axiom-core" }
+pyo3        = { workspace = true }
+pythonize   = "0.23"
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }

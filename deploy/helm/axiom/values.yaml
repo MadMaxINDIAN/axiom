@@ -1,0 +1,162 @@
+# Default values for axiom Helm chart.
+# Override with --set key=value or a custom values file (-f custom.yaml).
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/axiom-rules/axiom
+  pullPolicy: IfNotPresent
+  # Overrides the image tag (default: Chart.appVersion)
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Service account ────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Pod settings ───────────────────────────────────────────────────────────
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  fsGroup: 65534        # nobody
+
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534      # nobody
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+# ── Service ────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 8080
+
+# ── Ingress ────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: axiom.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: axiom-tls
+  #    hosts:
+  #      - axiom.example.com
+
+# ── Resources ──────────────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# ── Autoscaling (HPA) ──────────────────────────────────────────────────────
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 80
+
+# ── Probes ─────────────────────────────────────────────────────────────────
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
+
+# ── Storage ────────────────────────────────────────────────────────────────
+storage:
+  # backend: sqlite | postgres
+  backend: sqlite
+  # SQLite: path to the database file inside the pod
+  sqlitePath: /data/axiom.db
+  # Postgres: connection URL (use existingSecret in production)
+  postgresUrl: ""
+  # Reference an existing secret containing AXIOM_STORAGE_POSTGRES_URL
+  existingSecret: ""
+  existingSecretKey: AXIOM_STORAGE_POSTGRES_URL
+
+# Persistent volume for SQLite data (ignored when backend=postgres)
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+# ── Axiom config ───────────────────────────────────────────────────────────
+config:
+  logLevel: info
+  rulePollSecs: 10
+  rateLimitPerSec: 1000
+  # Optional directory to watch for YAML rule hot-reload
+  rulesDir: ""
+  # Dead-letter directory for failed webhook deliveries
+  deadLetterPath: /data/dead-letter
+
+# ── API keys (config-file keys, §6.2) ─────────────────────────────────────
+# These are loaded from a Secret named <release>-api-keys.
+# Provide the Secret separately; do NOT put plaintext keys here.
+apiKeysSecretName: ""
+
+# ── Webhooks ───────────────────────────────────────────────────────────────
+webhooks: []
+# Example:
+# webhooks:
+#   - event: fraud.review_required
+#     url: https://hooks.example.com/fraud
+#     secret: ${WEBHOOK_SECRET}
+
+# ── Node selector / tolerations / affinity ────────────────────────────────
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - axiom
+          topologyKey: kubernetes.io/hostname
+
+# ── Prometheus ServiceMonitor (requires prometheus-operator) ───────────────
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}

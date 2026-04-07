@@ -1,0 +1,27 @@
+# Single-instance development setup (§12.1)
+# For HA production, see deploy/docker-compose.ha.yml
+
+version: "3.9"
+
+services:
+  axiom:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - axiom-data:/data
+      - ./dead-letter:/data/dead-letter
+    environment:
+      AXIOM_STORAGE_BACKEND:  sqlite
+      AXIOM_STORAGE_PATH:     /data/axiom.db
+      AXIOM_DEAD_LETTER_PATH: /data/dead-letter
+      AXIOM_API_KEY:          ${AXIOM_API_KEY:-changeme}
+      AXIOM_LOG_LEVEL:        info
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout:  5s
+      retries:  3
+
+volumes:
+  axiom-data:

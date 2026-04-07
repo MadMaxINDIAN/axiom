@@ -1,0 +1,16 @@
+apiVersion: v2
+name: axiom
+description: Axiom rules engine — Helm chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - rules-engine
+  - decision-engine
+  - axiom
+home: https://github.com/axiom-rules/axiom
+sources:
+  - https://github.com/axiom-rules/axiom
+maintainers:
+  - name: Axiom Contributors
+    email: maintainers@axiom-rules.io

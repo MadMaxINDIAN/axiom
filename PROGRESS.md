@@ -140,20 +140,20 @@
 
 ---
 
-## Phase 3 — Visual Rule Builder _(Months 10–12)_ ⬜
+## Phase 3 — Visual Rule Builder _(Months 10–12)_ 🚧
 
 | Item | Status | Notes |
 |------|--------|-------|
-| React + Vite + Tailwind SPA (`ui/`) | ⬜ | |
-| `/rules` list view (search, tag filter, card/table) | ⬜ | |
-| `/rules/new` condition + action builder | ⬜ | |
-| `/rules/:id` detail, history diff, test panel | ⬜ | |
-| `/rulesets` management | ⬜ | |
-| `/tables` decision table view | ⬜ | |
-| `/flow` call_rule + trigger dependency diagram | ⬜ | |
-| `/settings` connection, API key, theme | ⬜ | |
-| Live test panel (dry-run on keystroke, 300 ms debounce) | ⬜ | |
-| Role-based UI control (viewer / editor / admin) | ⬜ | |
+| React + Vite + Tailwind SPA (`ui/`) | ✅ | Vite 5, React 18, TypeScript, TanStack Query, Zustand, React Router v6 |
+| `/rules` list view (search, tag filter, card/table) | ✅ | `ui/src/pages/Rules.tsx` — card + table toggle, all filters |
+| `/rules/new` condition + action builder | ✅ | `ui/src/pages/RuleNew.tsx` + `ConditionBuilder` + `ActionBuilder` |
+| `/rules/:id` detail, history diff, test panel | ✅ | `ui/src/pages/RuleDetail.tsx` — 4 tabs: overview, test, history, source |
+| `/rulesets` management | ✅ | `ui/src/pages/Rulesets.tsx` — create, edit membership, inline test panel |
+| `/tables` decision table view | ✅ | `ui/src/pages/Tables.tsx` — spreadsheet layout, dynamic condition columns |
+| `/flow` call_rule + trigger dependency diagram | ✅ | `ui/src/pages/Flow.tsx` — React Flow, solid/dashed edges, click to navigate |
+| `/settings` connection, API key, theme | ✅ | `ui/src/pages/Settings.tsx` — URL + key input, test connection, key management |
+| Live test panel (dry-run on keystroke, 300 ms debounce) | ✅ | `ui/src/components/TestPanel.tsx` + `TraceViewer.tsx` |
+| Role-based UI control (viewer / editor / admin) | ✅ | `useSettingsStore().role` gates write controls throughout |
 | Mutual TLS | ⬜ | |
 | GitHub Actions CI (Rust + Node + Java + Python) | ⬜ | |
 | OpenAPI 3.0 spec | ⬜ | |
